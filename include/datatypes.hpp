@@ -93,6 +93,10 @@ void motors_disable(void);
 boolean is_motors_decelerating_or_stopped();
 void motors_stop(void);
 void motors_abort_and_reset(void);
+void motors_enable_z(void);
+void motors_disable_z(void);
+void motors_start_z(void);
+void motors_stop_z(void);
 
 // Needle sensor
 void needle_sensor_setup(void);
@@ -115,10 +119,6 @@ char *sd_card_get_buffer();
 // Servo
 void servo_setup(void);
 void servo_set_tension(uint8_t tension);
-
-// Speed controller
-void speed_controller_setup(void);
-void speed_controller_write_speed(uint8_t speed);
 
 // Time converter
 time_t date_time_to_epoch(uint8_t hour, uint8_t minute, uint8_t second, uint8_t day, uint8_t month, uint16_t year);

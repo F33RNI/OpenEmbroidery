@@ -33,9 +33,10 @@ boolean motors_setup() {
     engine.init();
     stepper_x = engine.stepperConnectToPin(PIN_X_STP);
     stepper_y = engine.stepperConnectToPin(PIN_Y_STP);
+    stepper_z = engine.stepperConnectToPin(PIN_Z_STP);
 
     // Return false if initialization fails
-    if (!stepper_x || !stepper_y)
+    if (!stepper_x || !stepper_y || !stepper_z)
         return false;
 
     // Set enable and direction pins
@@ -43,15 +44,19 @@ boolean motors_setup() {
     stepper_x->setEnablePin(PIN_ENABLE);
     stepper_y->setDirectionPin(PIN_Y_DIR);
     stepper_y->setEnablePin(PIN_ENABLE);
+    stepper_z->setEnablePin(PIN_ENABLE_Z);
 
     // Disable motors
     motors_disable();
+    stepper_z->disableOutputs();
 
     // Set default speed and acceleration
     stepper_x->setSpeedInHz(SPEED_INITIAL_MM_S * STEPS_PER_MM_X);
     stepper_y->setSpeedInHz(SPEED_INITIAL_MM_S * STEPS_PER_MM_Y);
+    stepper_z->setSpeedInHz(SPEED_Z_HZ);
     stepper_x->setAcceleration(ACCELERATION_INITIAL_X_MM_S * STEPS_PER_MM_X);
     stepper_y->setAcceleration(ACCELERATION_INITIAL_Y_MM_S * STEPS_PER_MM_Y);
+    stepper_z->setAcceleration(ACCELERATION_Z_HZ);
     
     // Return successful value
     return true;
@@ -161,7 +166,7 @@ void motors_disable(void) {
  * @return boolean - true if motors are decelerating or stopped
  */
 boolean is_motors_decelerating_or_stopped() {
-    boolean stepper_x_decelerating_or_stopped = !stepper_x->isRunning()
+    /*boolean stepper_x_decelerating_or_stopped = !stepper_x->isRunning()
         || stepper_x->rampState() == RAMP_STATE_DECELERATE
         || stepper_x->rampState() == RAMP_STATE_DECELERATE_TO_STOP
         || stepper_x->rampState() == RAMP_STATE_DECELERATING_FLAG;
@@ -171,9 +176,9 @@ boolean is_motors_decelerating_or_stopped() {
         || stepper_y->rampState() == RAMP_STATE_DECELERATE_TO_STOP
         || stepper_y->rampState() == RAMP_STATE_DECELERATING_FLAG;
 
-    //return !stepper_x->isRunning() && !stepper_y->isRunning();
+    return stepper_x_decelerating_or_stopped && stepper_y_decelerating_or_stopped;*/
 
-    return stepper_x_decelerating_or_stopped && stepper_y_decelerating_or_stopped;
+    return !stepper_x->isRunning() && !stepper_y->isRunning();
 }
 
 /**
@@ -200,4 +205,36 @@ void motors_abort_and_reset(void) {
     // Reset absolute position
     stepper_x->setCurrentPosition(0);
     stepper_y->setCurrentPosition(0);
+}
+
+/**
+ * @brief Enable output of Z motor
+ * 
+ */
+void motors_enable_z(void) {
+    stepper_z->enableOutputs();
+}
+
+/**
+ * @brief Disables output of Z motor
+ * 
+ */
+void motors_disable_z(void) {
+    stepper_z->disableOutputs();
+}
+
+/**
+ * @brief Start spinning z motor
+ * 
+ */
+void motors_start_z(void) {
+    stepper_z->moveByAcceleration(ACCELERATION_Z_HZ);
+}
+
+/**
+ * @brief Stops spinning z motor
+ * 
+ */
+void motors_stop_z(void) {
+    stepper_z->stopMove();
 }

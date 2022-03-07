@@ -45,7 +45,7 @@ uint8_t tension_;
 uint8_t progress;
 uint8_t paused_code;
 
-boolean is_tensioned, motor_enabled;
+boolean is_tensioned, is_motor_enabled;
 
 void calculate_interpolation(void);
 float gcode_parse_code(char code, float default_value);

@@ -28,7 +28,7 @@
 /*******************************/
 /*            DEBUG            */
 /*******************************/
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 #define DEBUG_SERIAL Serial
@@ -42,13 +42,15 @@
 // Step pins
 const uint8_t PIN_X_STP PROGMEM = 2;
 const uint8_t PIN_Y_STP PROGMEM = 3;
+const uint8_t PIN_Z_STP PROGMEM = 5;
 
 // Dir pins
-const uint8_t PIN_X_DIR PROGMEM = 5;
+const uint8_t PIN_X_DIR PROGMEM = 7;
 const uint8_t PIN_Y_DIR PROGMEM = 6;
 
 // Enable pin
 const uint8_t PIN_ENABLE PROGMEM = 8;
+const uint8_t PIN_ENABLE_Z PROGMEM = 9;
 
 
 /*********************************/
@@ -106,5 +108,7 @@ const int32_t STEPS_PER_MM_Y PROGMEM = 65;
 #define SPEED_INITIAL_MM_S 10
 #define ACCELERATION_INITIAL_X_MM_S 300
 #define ACCELERATION_INITIAL_Y_MM_S 500
+#define SPEED_Z_HZ 1200
+#define ACCELERATION_Z_HZ 15000
 
 #endif

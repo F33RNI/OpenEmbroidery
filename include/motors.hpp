@@ -27,6 +27,7 @@
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper_x = NULL;
 FastAccelStepper *stepper_y = NULL;
+FastAccelStepper *stepper_z = NULL;
 
 int32_t new_position_x_steps, new_position_y_steps;
 

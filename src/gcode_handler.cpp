@@ -39,8 +39,9 @@ void gcode_cycle(void) {
                 // Clear interrupt flag
                 needle_sensor_clear_interrupt_flag();
 
-                // Enable motor
-                speed_controller_write_speed(60);
+                // Enable and start main motor
+                motors_enable_z();
+                motors_start_z();
 
                 // Disable motor after needle interrupt
                 next_line_condition = CONDITION_AFTER_INTERRUPT;
@@ -80,7 +81,7 @@ void gcode_cycle(void) {
                 break;
 
             case ACTION_DISABLE_MOTOR:
-                speed_controller_write_speed(0);
+                motors_stop_z();
                 break;
             
             default:
@@ -138,7 +139,7 @@ void gcode_cycle(void) {
                     motors_move_to_position(&x_new, &y_new);
 
                     // Enable motor after move to create stitch
-                    if (motor_enabled) {
+                    if (is_motor_enabled) {
                         needle_sensor_clear_interrupt_flag();
                         next_line_condition = CONDITION_AFTER_MOVE;
                         action_after_move = ACTION_ENABLE_MOTOR;
@@ -189,17 +190,15 @@ void gcode_cycle(void) {
 
             case 3:
                 // M3 - Enable tool
-                //relay_on();
-                //speed_controller_write_speed(50);
-                motor_enabled = true;
+                motors_enable_z();
+                is_motor_enabled = true;
                 break;
 
             case 5:
                 // M5 - Disable tool
-                //action_after_needle_interrupt = ACTION_DISABLE_MOTOR;
-                //next_line_condition = CONDITION_AFTER_INTERRUPT;
-                speed_controller_write_speed(0);
-                motor_enabled = false;
+                motors_disable_z();
+                motors_stop_z();
+                is_motor_enabled = false;
                 break;
 
             case 17:
@@ -303,14 +302,23 @@ void gcode_clear(void) {
         EEPROM.write(0, tension_);
     }
 
-    // Reset progress
+    // Reset variables
+    x_new = 0;
+    y_new = 0;
+    interpolation_x = 1;
+    interpolation_y = 1;
+    command = 0;
     progress = 0;
-
-    // Reset pause code
     paused_code = 0;
+    is_motor_enabled = 0;
+    is_tensioned = 0;
 
     // Reset line condition
     next_line_condition = CONDITION_IMMEDIATELY;
+
+    // Reset action
+    action_after_move = ACTION_NONE;
+    action_after_needle_interrupt = ACTION_NONE;
 
     // Reset needle interrupt flag
     needle_sensor_clear_interrupt_flag();
@@ -325,8 +333,11 @@ void gcode_pause(void) {
     // Stop motors
     motors_stop();
 
-    // Disable main motor
-    speed_controller_write_speed(0);
+    // Stop main motor
+    if (is_motor_enabled) {
+        motors_stop_z();
+        motors_disable_z();
+    }
 
     // Reset line condition
     next_line_condition = CONDITION_IMMEDIATELY;
@@ -351,9 +362,11 @@ void gcode_stop(void) {
     servo_set_tension(0);
     is_tensioned = false;
 
-    // Disable main motor
-    speed_controller_write_speed(0);
-    motor_enabled = false;
+    // Stop main motor
+    if (is_motor_enabled) {
+        motors_stop_z();
+        motors_disable_z();
+    }
 }
 
 void calculate_interpolation(void) {

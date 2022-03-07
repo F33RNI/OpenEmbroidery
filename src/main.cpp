@@ -57,7 +57,7 @@ void setup() {
   servo_setup();
 
   // Initialize speed controller
-  speed_controller_setup();
+  //speed_controller_setup();
 
   // Initialize gcode handler
   gcode_clear();
