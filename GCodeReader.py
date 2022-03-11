@@ -72,17 +72,11 @@ class GCodeReader:
             # Try to find G-code
             command = self.parse_code(gcode_line, 'G', -1)
 
-            # G1
-            if command == 1:
-                # If color started
-                if color_started and thread_inserted:
-                    # Parse x and y position
-                    x = self.parse_code(gcode_line, 'X', x)
-                    y = self.parse_code(gcode_line, 'Y', y)
-
-                    # Append positions to arrays
-                    points_x.append(x)
-                    points_y.append(y)
+            # G1 or G0
+            if command == 1 or command == 0:
+                # Parse current x and y position
+                x = self.parse_code(gcode_line, 'X', x)
+                y = self.parse_code(gcode_line, 'Y', y)
 
             # No G-code found
             else:
@@ -121,6 +115,12 @@ class GCodeReader:
                     # Current code is thread insertion
                     elif pause_code == 100:
                         thread_inserted = True
+
+                # M3
+                elif command == 3:
+                    # Make stitch
+                    points_x.append(x)
+                    points_y.append(y)
 
         # Close file
         file.close()

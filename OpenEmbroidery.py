@@ -69,6 +69,13 @@ class Window(QMainWindow):
         # Number of colors
         self.number_of_colors = 0
 
+        # GCode flags
+        self.is_thread_pulled_out = False
+        self.is_thread_tensioned = False
+
+        # Counter for trim
+        self.stitch_counter = 0
+
         # Load GUI file
         uic.loadUi('gui.ui', self)
         self.show()
@@ -161,39 +168,54 @@ class Window(QMainWindow):
             if self.gcode_file is not None:
                 try:
                     os.remove(self.gcode_file)
-                except:
-                    print('Error removing previous temp file')
+                except Exception as e:
+                    print('Error removing previous temp file', e)
 
             # Create new temp file
-            self.gcode_file = tempfile.NamedTemporaryFile().name
+            self.gcode_file = tempfile.NamedTemporaryFile(delete=True).name
             self.gcode_io = open(self.gcode_file, 'w+')
             print('Temp file: ', self.gcode_file)
 
-            # Current machine state (is machine running)
-            machine_enabled = False
+            # Reset flags
+            self.is_thread_pulled_out = False
+            self.is_thread_tensioned = False
 
-            # Current tension state
-            machine_tension = False
+            # Reset stitch counter
+            self.stitch_counter = 0
 
             # Color counter
             color_counter = 1
 
-            # Progress storage to update every 5%
+            # Progress storage to update every %
             progress_last = 0
 
             # Get speeds from spin boxes
-            jump_speed = self.spinbox_speed_jump.value()
-            stitch_speed = self.spinbox_speed_stitch.value()
+            jump_speed = int(self.spinbox_speed_jump.value())
+            stitch_speed = int(self.spinbox_speed_stitch.value())
+            z_low_speed = int(self.spinbox_speed_z_low.value())
+            z_high_speed = int(self.spinbox_speed_z_high.value())
 
             # Get accelerations from spin boxes
-            acceleration_x = self.spinbox_acc_x.value()
-            acceleration_y = self.spinbox_acc_y.value()
+            acceleration_x = int(self.spinbox_acc_x.value())
+            acceleration_y = int(self.spinbox_acc_y.value())
+            acceleration_z_low = int(self.spinbox_acc_z_max.value() / math.pow(z_high_speed / z_low_speed, 2))
+            acceleration_z_high = int(self.spinbox_acc_z_max.value())
+
+            # Get clearance from spinbox
+            if self.checkbox_clearance.isChecked():
+                clearance = float(self.spinbox_clearance.value())
+            else:
+                clearance = 0.
+
+            # X and Y position storage for clearance
+            x_prev = 0
+            y_prev = 0
 
             # Get scaling factor from spin box
             scaling_factor = self.spinbox_scaling_factor.value()
 
-            # thread is inserted
-            is_thread_inserted = False
+            # Write input file name to gcode as comment
+            self.write_gcode_line('; ' + os.path.basename(self.input_file_name).lower())
 
             # Enable motors
             self.write_gcode_line('M17')
@@ -202,10 +224,11 @@ class Window(QMainWindow):
             self.write_gcode_line('M73 P0')
 
             # Set accelerations
-            self.write_gcode_line('M201 X' + str(acceleration_x) + ' Y' + str(acceleration_y))
+            self.write_gcode_line('M201 X' + str(acceleration_x) + ' Y' + str(acceleration_y)
+                                  + ' Z' + str(acceleration_z_low))
 
             # Wait some time
-            self.write_gcode_line('G4 P1000')
+            self.write_gcode_line('G4 P500')
 
             # Calculate number of colors and min and max points
             self.number_of_colors = 1
@@ -239,8 +262,9 @@ class Window(QMainWindow):
                 if y > y_max:
                     y_max = y
 
-            # Cycle all min-max points
+            # Whether the moving to extreme points is enabled
             if self.checkbox_move_min_max.isChecked():
+                # Cycle all min-max points
                 self.write_gcode_line('G0 X' + str(x_min) + ' Y' + str(y_min) + ' F' + str(jump_speed))
                 self.write_gcode_line('G4 P500')
                 self.write_gcode_line('G0 X' + str(x_min) + ' Y' + str(y_max) + ' F' + str(jump_speed))
@@ -248,10 +272,11 @@ class Window(QMainWindow):
                 self.write_gcode_line('G0 X' + str(x_max) + ' Y' + str(y_max) + ' F' + str(jump_speed))
                 self.write_gcode_line('G4 P500')
                 self.write_gcode_line('G0 X' + str(x_max) + ' Y' + str(y_min) + ' F' + str(jump_speed))
-                self.write_gcode_line('G4 P500')
+                self.write_gcode_line('G4 P1000')
 
             # Move to the center
             self.write_gcode_line('G0 X0 Y0 ' + 'F' + str(jump_speed))
+            self.write_gcode_line('G4 P500')
 
             # Request first color
             self.write_gcode_line('M0 C' + str(color_counter))
@@ -263,112 +288,139 @@ class Window(QMainWindow):
                 stitch_y = stitch[2]
                 stitch_type = stitch[3]
 
-                x = str(round(float(stitch_x / scaling_factor), 2))
-                y = str(round(float(stitch_y / scaling_factor), 2))
+                x = float(stitch_x / scaling_factor)
+                y = float(stitch_y / scaling_factor)
+                x_str = str(round(x, 2))
+                y_str = str(round(y, 2))
                 progress = int(_map(stitch_index, 0, self.pattern.count_stitches(), 0, 100))
 
-                # Update progress every 5%
-                if abs(progress - progress_last) >= 5:
+                # Update progress every 1%
+                if abs(progress - progress_last) >= 1:
                     progress_last = progress
                     self.write_gcode_line('M73 P' + str(progress))
+
+                # Stitch type is anything but STITCH
+                if stitch_type != pyembroidery.STITCH:
+                    # Clear stitch counter
+                    self.stitch_counter = 0
+
+                    # Stop and disable main motor
+                    self.write_gcode_line('M5')
+
+                    # Decrease tension
+                    self.gcode_set_thread_tension(False)
+
+                    # Reset previous stitch position
+                    x_prev = 0
+                    y_prev = 0
 
                 ################
                 #     JUMP     #
                 ################
                 if stitch_type == pyembroidery.JUMP:
-                    # Disable machine
-                    if machine_enabled:
-                        self.write_gcode_line('M5')
-                        machine_enabled = False
-
-                    # Decrease tension
-                    if machine_tension:
-                        self.write_gcode_line('M41')
-                        self.write_gcode_line('G4 P500')
-                        machine_tension = False
-
                     # Jump to position
-                    self.write_gcode_line('G0 X' + x + ' Y' + y + ' F' + str(jump_speed))
+                    self.write_gcode_line('G0 X' + x_str + ' Y' + y_str + ' F' + str(jump_speed))
 
                 ##################
                 #     STITCH     #
                 ##################
                 elif stitch_type == pyembroidery.STITCH:
-                    # If threaded
-                    if is_thread_inserted:
-                        # Increase tension
-                        if not machine_tension:
-                            self.write_gcode_line('M42')
-                            self.write_gcode_line('G4 P500')
-                            machine_tension = True
-
-                        # Enable machine
-                        if not machine_enabled:
-                            self.write_gcode_line('M3')
-                            machine_enabled = True
-
-                        # Move to position and make stitch
-                        self.write_gcode_line('G1 X' + x + ' Y' + y + ' F' + str(stitch_speed))
-
-                    # Jump to stitch and make pause to thread
-                    else:
+                    # Thread is not pulled out
+                    if not self.is_thread_pulled_out:
                         # Jump to stitch position
-                        self.write_gcode_line('G0 X' + x + ' Y' + y + ' F' + str(stitch_speed))
+                        self.write_gcode_line('G0 X' + x_str + ' Y' + y_str + ' F' + str(jump_speed))
 
                         # Decrease tension
-                        self.write_gcode_line('M41')
+                        self.gcode_set_thread_tension(False)
 
-                        # Pause to thread (code A)
+                        # Pause to insert and pull out the thread (code A)
                         self.write_gcode_line('M0 C100')
 
-                        # Set threaded flag
-                        is_thread_inserted = True
+                        # Set pulled out flag
+                        self.is_thread_pulled_out = True
 
                         # Request tension increase
-                        machine_tension = False
+                        self.is_thread_tensioned = False
+
+                    # Calculate distance between stitches
+                    distance = math.sqrt(pow(x - x_prev, 2) + pow(y - y_prev, 2))
+
+                    # Check spacing between stitches
+                    if distance >= clearance or (x_prev == 0 and y_prev == 0):
+                        # Store position for next cycle
+                        x_prev = x
+                        y_prev = y
+
+                        # Increase tension
+                        self.gcode_set_thread_tension(True)
+
+                        # Move to stitch position
+                        self.write_gcode_line('G1 X' + x_str + ' Y' + y_str + ' F' + str(stitch_speed))
+
+                        # Set low acceleration
+                        if self.stitch_counter == 0:
+                            self.write_gcode_line('M201 X' + str(acceleration_x) + ' Y' + str(acceleration_y)
+                                                  + ' Z' + str(acceleration_z_low))
+
+                        # Make stitch with low speed
+                        if self.stitch_counter <= 5:
+                            self.write_gcode_line('M3 S' + str(z_low_speed) + ' I1')
+                            self.stitch_counter += 1
+
+                        # Make stitch with high speed
+                        else:
+                            # Set high acceleration
+                            if self.stitch_counter == 6:
+                                self.write_gcode_line('M201 X' + str(acceleration_x) + ' Y' + str(acceleration_y)
+                                                      + ' Z' + str(acceleration_z_high))
+                                self.stitch_counter += 1
+
+                            # Make stitch
+                            self.write_gcode_line('M3 S' + str(z_high_speed) + ' I1')
+
+                        # Pause to trim
+                        if self.stitch_counter == 5:
+                            self.write_gcode_line('M0 C101')
+                            self.stitch_counter += 1
+
+                    # Spacing between stitches is too small
+                    else:
+                        # Jump to stitch position
+                        self.write_gcode_line('G0 X' + x_str + ' Y' + y_str + ' F' + str(jump_speed))
+
+                ################
+                #     TRIM     #
+                ################
+                elif stitch_type == pyembroidery.TRIM:
+                    # Jump to position
+                    self.write_gcode_line('G0 X' + x_str + ' Y' + y_str + ' F' + str(jump_speed))
+
+                    # Pause to trim
+                    self.write_gcode_line('M0 C101')
+
+                    # Request pause to insert and pull out the thread
+                    self.is_thread_pulled_out = False
 
                 ########################
                 #     COLOR_CHANGE     #
                 ########################
                 elif stitch_type == pyembroidery.COLOR_CHANGE:
-                    # Disable machine
-                    if machine_enabled:
-                        self.write_gcode_line('M5')
-                        machine_enabled = False
-
-                    # Decrease tension
-                    if machine_tension:
-                        self.write_gcode_line('M41')
-                        self.write_gcode_line('G4 P500')
-                        machine_tension = False
-
                     # Change color
                     color_counter += 1
                     self.write_gcode_line('M0 C' + str(color_counter))
 
-                    # Request pause to insert thread
-                    is_thread_inserted = False
-
                     # Jump to position
-                    self.write_gcode_line('G0 X' + x + ' Y' + y + ' F' + str(jump_speed))
+                    self.write_gcode_line('G0 X' + x_str + ' Y' + y_str + ' F' + str(jump_speed))
+
+                    # Request pause to insert and pull out the thread
+                    self.is_thread_pulled_out = False
 
                 ###############
                 #     END     #
                 ###############
                 elif stitch_type == pyembroidery.END:
-                    # Disable machine
-                    if machine_enabled:
-                        self.write_gcode_line('M5')
-                        machine_enabled = False
-
-                    # Decrease tension
-                    if machine_tension:
-                        self.write_gcode_line('M41')
-                        self.write_gcode_line('G4 P500')
-                        machine_tension = False
-
                     # Jump to position
-                    self.write_gcode_line('G0 X' + x + ' Y' + y + ' F' + str(jump_speed))
+                    self.write_gcode_line('G0 X' + x_str + ' Y' + y_str + ' F' + str(jump_speed))
 
             # End of file. Stop machine
             self.write_gcode_line('M5')
@@ -385,6 +437,30 @@ class Window(QMainWindow):
             points, colors = gcode_reader.parse_to_points()
             self.draw_gcode(points, colors)
 
+    def gcode_set_thread_tension(self, tension):
+        # Increase tension
+        if tension:
+            if not self.is_thread_tensioned:
+                self.write_gcode_line('M42')
+                self.write_gcode_line('G4 P500')
+                self.is_thread_tensioned = True
+
+        # Decrease tension
+        else:
+            if self.is_thread_tensioned:
+                self.write_gcode_line('M41')
+                self.write_gcode_line('G4 P500')
+                self.is_thread_tensioned = False
+
+    def write_gcode_line(self, line):
+        """
+        Writes line to file
+        :param line: line as String
+        :return:
+        """
+        if self.gcode_file is not None and self.gcode_io is not None:
+            self.gcode_io.write(line + '\n')
+
     def gcode_export(self):
         """
         Exports generated G-code file
@@ -400,15 +476,6 @@ class Window(QMainWindow):
                 shutil.copyfile(self.gcode_file, filename)
                 # Print selected file
                 print('Exported to: ' + filename)
-
-    def write_gcode_line(self, line):
-        """
-        Writes line to file
-        :param line: line as String
-        :return:
-        """
-        if self.gcode_file is not None and self.gcode_io is not None:
-            self.gcode_io.write(line + '\n')
 
     def draw_gcode(self, points, colors):
         """
