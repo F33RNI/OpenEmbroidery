@@ -25,63 +25,32 @@
 
 
 void gcode_cycle(void) {
-    // Skip cycle if next_line_condition is after move and motors are running
-    //if (next_line_condition == CONDITION_AFTER_MOVE && !is_motors_decelerating_or_stopped())
-    //    return;
-
-
-    // next_line_condition is after motors stop moving
-    if (next_line_condition == CONDITION_AFTER_MOVE) {
-        if (is_motors_decelerating_or_stopped()) {
-            switch (action_after_move)
-            {
-            case ACTION_ENABLE_MOTOR:
-                // Clear interrupt flag
-                needle_sensor_clear_interrupt_flag();
-
-                // Enable and start main motor
-                motors_enable_z();
-                motors_start_z();
-
-                // Disable motor after needle interrupt
-                next_line_condition = CONDITION_AFTER_INTERRUPT;
-                action_after_needle_interrupt = ACTION_DISABLE_MOTOR;
-                return;
-
-                break;
-            
-            default:
-                break;
-            }
-        }
-
-        // Motors are still moving - just skip this cycle
-        else
+    switch (next_line_condition)
+    {
+    case CONDITION_AFTER_MOVE:
+        // Skip this cycle if motors are running
+        if (!is_motors_stopped())
             return;
+        break;
 
-    }
-
-    // next_line_condition is after needle interrupt
-    else if (next_line_condition == CONDITION_AFTER_INTERRUPT) {
-        // If interrupt occurs
+    case CONDITION_AFTER_INTERRUPT:
+        // If needle interrupt occurs
         if (needle_sensor_get_interrupt_flag()) {
             switch (action_after_needle_interrupt)
             {
-            case ACTION_MOVE_TO:
-                /*// Move to new position
-                motors_move_to_position(&x_new, &y_new);
+            case ACTION_STOP_MOTOR:
+                // Stop Z motor 
+                motors_stop_z();
 
-                // Enable motor after move to create stitch
-                if (motor_enabled) {
-                    needle_sensor_clear_interrupt_flag();
-                    next_line_condition = CONDITION_AFTER_MOVE;
-                    action_after_move = ACTION_ENABLE_MOTOR;
+                // UNCOMMENT THIS TO MOVE ONLY AFTER THE MAIN MOTOR IS COMPLETELY STOPPED
+                /*// If motor is still running
+                if (!is_motor_z_stopped()) {
+                    // Stop Z motor     
+                    motors_stop_z();
+
+                    // Skip this cycle
                     return;
                 }*/
-                break;
-
-            case ACTION_DISABLE_MOTOR:
-                motors_stop_z();
                 break;
             
             default:
@@ -89,9 +58,17 @@ void gcode_cycle(void) {
             }
         }
 
-        // No needle interrupt - just skip this cycle
+        // No needle interrupt - skip this cycle
         else
             return;
+
+    case CONDITION_AFTER_DWELL:
+        // Skip this cycle if the time has not passed
+        if (millis() - dwell_timer < dwell_delay)
+            return;
+    
+    default:
+        break;
     }
 
     // Reset needle interrupt flag
@@ -103,8 +80,11 @@ void gcode_cycle(void) {
     // Clear interrupt action
     action_after_needle_interrupt = ACTION_NONE;
 
-    // Clear after move action
-    action_after_move = ACTION_NONE;
+    // Reset delay
+    dwell_delay = 0;
+
+    // Reset Dwell timer
+    dwell_timer = millis();
 
     // Read line from file
     if (sd_card_read_next_line()) {
@@ -117,50 +97,35 @@ void gcode_cycle(void) {
         {
             case 0:
             case 1: {
-                // G0, G1 - interpolate motion
-                // G0 - regular move
-                // G1 - move after needle interrupt
+                // G0, G1 - interpolation movement
 
                 x_new = gcode_parse_code('X', motors_get_x());
                 y_new = gcode_parse_code('Y', motors_get_y());
-                speed = gcode_parse_code('F', speed);
+                speed_xy = gcode_parse_code('F', speed_xy);
 
                 // Calculate interpolation factors
                 calculate_interpolation();
 
                 // Update speed and accelertion
-                motors_set_speed_x(speed * interpolation_x);
-                motors_set_speed_y(speed * interpolation_y);
+                motors_set_speed_x(speed_xy * interpolation_x);
+                motors_set_speed_y(speed_xy * interpolation_y);
                 motors_set_acceleration_x(acceleration_x * interpolation_x);
                 motors_set_acceleration_y(acceleration_y * interpolation_y);
 
-                // G1
-                if (command == 1) {
-                    motors_move_to_position(&x_new, &y_new);
+                // Move motors to new position
+                motors_move_to_position(&x_new, &y_new);
 
-                    // Enable motor after move to create stitch
-                    if (is_motor_enabled) {
-                        needle_sensor_clear_interrupt_flag();
-                        next_line_condition = CONDITION_AFTER_MOVE;
-                        action_after_move = ACTION_ENABLE_MOTOR;
-                        return;
-                    }
-                    
-                    /*action_after_needle_interrupt = ACTION_MOVE_TO;
-                    next_line_condition = CONDITION_AFTER_INTERRUPT;*/
-                }
-
-                // G0
-                else {
-                    motors_move_to_position(&x_new, &y_new);
-                    next_line_condition = CONDITION_AFTER_MOVE;
-                }
+                // Parse next line after motors stopped
+                next_line_condition = CONDITION_AFTER_MOVE;
                 break;
             }
 
             case 4:
                 // G4 - Delay (Dwell)
-                delay(gcode_parse_code('P', 0));
+                dwell_delay = gcode_parse_code('P', 0);
+
+                // Parse next line after dwell timer
+                next_line_condition = CONDITION_AFTER_DWELL;
                 break;
             
             default:
@@ -189,16 +154,44 @@ void gcode_cycle(void) {
                 break;
 
             case 3:
-                // M3 - Enable tool
+                // M3 - Enable and start motor (continues rotation or until needle interrupt)
+                // Enable Z motor
                 motors_enable_z();
-                is_motor_enabled = true;
+
+                // Set speed of Z motor
+                speed_z = gcode_parse_code('S', SPEED_INITIAL_Z_HZ);
+                motors_set_speed_z(speed_z);
+
+                // Rotate motor until needle interrupt if I1 is in G-code 
+                if (gcode_parse_code('I', 0) > 0) {
+                    // Clear interrupt flag
+                    needle_sensor_clear_interrupt_flag();
+
+                    // Stop z motor after needle interrupt
+                    next_line_condition = CONDITION_AFTER_INTERRUPT;
+                    action_after_needle_interrupt = ACTION_STOP_MOTOR;
+                }
+
+                // Continuous rotation
+                else {
+                    // Reset line condition and action
+                    next_line_condition = CONDITION_IMMEDIATELY;
+                    action_after_needle_interrupt = ACTION_NONE;
+                }
+                
+                // Start Z motor
+                if (speed_z > 0)
+                    motors_start_z();
+
+                // Stop Z motor
+                else
+                    motors_stop_z();
                 break;
 
             case 5:
-                // M5 - Disable tool
+                // M5 - Stop and disable motor
                 motors_disable_z();
                 motors_stop_z();
-                is_motor_enabled = false;
                 break;
 
             case 17:
@@ -232,12 +225,13 @@ void gcode_cycle(void) {
                 break;
 
             case 201:
-                // M201 - Set acceleration
+                // M201 - Set accelerations
                 acceleration_x = gcode_parse_code('X', acceleration_x);
                 acceleration_y = gcode_parse_code('Y', acceleration_y);
 
                 motors_set_acceleration_x(acceleration_x);
                 motors_set_acceleration_y(acceleration_y);
+                motors_set_acceleration_z(gcode_parse_code('Z', ACCELERATION_INITIAL_Z_HZ));
                 break;
             
             default:
@@ -310,21 +304,20 @@ void gcode_clear(void) {
     command = 0;
     progress = 0;
     paused_code = 0;
-    is_motor_enabled = 0;
     is_tensioned = 0;
 
     // Reset line condition
     next_line_condition = CONDITION_IMMEDIATELY;
 
     // Reset action
-    action_after_move = ACTION_NONE;
     action_after_needle_interrupt = ACTION_NONE;
 
     // Reset needle interrupt flag
     needle_sensor_clear_interrupt_flag();
 
-    // Set initial speed and accelerations
-    speed = SPEED_INITIAL_MM_S;
+    // Set initial speeds and accelerations
+    speed_xy = SPEED_INITIAL_XY_MM_S;
+    speed_z = SPEED_INITIAL_Z_HZ;
     acceleration_x = ACCELERATION_INITIAL_X_MM_S;
     acceleration_y = ACCELERATION_INITIAL_Y_MM_S;
 }
@@ -333,11 +326,9 @@ void gcode_pause(void) {
     // Stop motors
     motors_stop();
 
-    // Stop main motor
-    if (is_motor_enabled) {
-        motors_stop_z();
-        motors_disable_z();
-    }
+    // Stop and disable main motor
+    motors_stop_z();
+    motors_disable_z();
 
     // Reset line condition
     next_line_condition = CONDITION_IMMEDIATELY;
@@ -362,22 +353,26 @@ void gcode_stop(void) {
     servo_set_tension(0);
     is_tensioned = false;
 
-    // Stop main motor
-    if (is_motor_enabled) {
-        motors_stop_z();
-        motors_disable_z();
-    }
+    // Stop and disable main motor
+    motors_stop_z();
+    motors_disable_z();
 }
 
 void calculate_interpolation(void) {
-    // Calculate angle of motion
-    result_angle_rad = atan2f(y_new - motors_get_y(), x_new - motors_get_x());
+    // Calculate X distance
+    interpolation_x_d = x_new - motors_get_x();
 
-    // Calculate X interpolation as cos
-    interpolation_x = abs(cosf(result_angle_rad));
+    // Calculate Y distance
+    interpolation_y_d = y_new - motors_get_y();
 
-    // Calculate Y interpolation as sin
-    interpolation_y = abs(sinf(result_angle_rad));
+    // Find total distance between points
+    interpolation_distance = sqrtf(interpolation_x_d * interpolation_x_d + interpolation_y_d * interpolation_y_d);
+
+    // Calculate X interpolation
+    interpolation_x = abs(interpolation_x_d) / interpolation_distance;
+
+    // Calculate Y interpolation
+    interpolation_y = abs(interpolation_y_d) / interpolation_distance;
 }
 
 float gcode_parse_code(char code, float default_value) {

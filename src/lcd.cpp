@@ -152,7 +152,8 @@ void lcd_print_file_name(void) {
 
     // Print file name
     lcd.setCursor(1, 0);
-    lcd.print(sd_card_get_file_name());
+    for (uint8_t i = 0; i < 19; i++)
+        lcd.print(sd_card_get_file_name()[i]);
 }
 
 void lcd_print_pre_start(void) {

@@ -27,25 +27,27 @@
 #define CONDITION_IMMEDIATELY 0
 #define CONDITION_AFTER_MOVE 1
 #define CONDITION_AFTER_INTERRUPT 2
+#define CONDITION_AFTER_DWELL 3
 
 #define ACTION_NONE 0
-#define ACTION_MOVE_TO 1
-#define ACTION_DISABLE_MOTOR 2
-#define ACTION_ENABLE_MOTOR 3
+#define ACTION_STOP_MOTOR 1
 
 float x_new, y_new;
-float result_angle_rad, interpolation_x, interpolation_y;
-uint32_t speed, acceleration_x, acceleration_y;
+float interpolation_x_d, interpolation_y_d, interpolation_distance, interpolation_x, interpolation_y;
+uint32_t speed_xy, speed_z, acceleration_x, acceleration_y;
 int command;
 
+unsigned long dwell_timer, dwell_delay;
+
 uint8_t next_line_condition;
-uint8_t action_after_needle_interrupt, action_after_move;
+uint8_t action_after_needle_interrupt;
+boolean z_move_until_needle_interrupt;
 
 uint8_t tension_;
 uint8_t progress;
 uint8_t paused_code;
 
-boolean is_tensioned, is_motor_enabled;
+boolean is_tensioned;
 
 void calculate_interpolation(void);
 float gcode_parse_code(char code, float default_value);

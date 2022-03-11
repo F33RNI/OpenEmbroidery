@@ -51,12 +51,12 @@ boolean motors_setup() {
     stepper_z->disableOutputs();
 
     // Set default speed and acceleration
-    stepper_x->setSpeedInHz(SPEED_INITIAL_MM_S * STEPS_PER_MM_X);
-    stepper_y->setSpeedInHz(SPEED_INITIAL_MM_S * STEPS_PER_MM_Y);
-    stepper_z->setSpeedInHz(SPEED_Z_HZ);
+    stepper_x->setSpeedInHz(SPEED_INITIAL_XY_MM_S * STEPS_PER_MM_X);
+    stepper_y->setSpeedInHz(SPEED_INITIAL_XY_MM_S * STEPS_PER_MM_Y);
+    stepper_z->setSpeedInHz(SPEED_INITIAL_Z_HZ);
     stepper_x->setAcceleration(ACCELERATION_INITIAL_X_MM_S * STEPS_PER_MM_X);
     stepper_y->setAcceleration(ACCELERATION_INITIAL_Y_MM_S * STEPS_PER_MM_Y);
-    stepper_z->setAcceleration(ACCELERATION_Z_HZ);
+    stepper_z->setAcceleration(ACCELERATION_INITIAL_Z_HZ);
     
     // Return successful value
     return true;
@@ -99,6 +99,15 @@ void motors_set_speed_y(float speed_mm_s) {
 }
 
 /**
+ * @brief Sets Z motor speed
+ * 
+ * @param speed_hz - speed in steps/s
+ */
+void motors_set_speed_z(uint32_t speed_hz) {
+    stepper_z->setSpeedInHz(speed_hz);
+}
+
+/**
  * @brief Sets X motor acceleration
  * 
  * @param acceleration_mm_s - acceleration in mm/s^2
@@ -114,6 +123,15 @@ void motors_set_acceleration_x(float acceleration_mm_s) {
  */
 void motors_set_acceleration_y(float acceleration_mm_s) {
     stepper_y->setAcceleration(acceleration_mm_s * STEPS_PER_MM_Y);
+}
+
+/**
+ * @brief Sets Z motor acceleration
+ * 
+ * @param acceleration_steps_s - acceleration in steps/s^2
+ */
+void motors_set_acceleration_z(int32_t acceleration_steps_s) {
+    stepper_z->setAcceleration(acceleration_steps_s);
 }
 
 /**
@@ -161,11 +179,11 @@ void motors_disable(void) {
 }
 
 /**
- * @brief Checks if motors is running
+ * @brief Checks if motors are stopped
  * 
- * @return boolean - true if motors are decelerating or stopped
+ * @return boolean - true if motors are stopped
  */
-boolean is_motors_decelerating_or_stopped() {
+boolean is_motors_stopped() {
     /*boolean stepper_x_decelerating_or_stopped = !stepper_x->isRunning()
         || stepper_x->rampState() == RAMP_STATE_DECELERATE
         || stepper_x->rampState() == RAMP_STATE_DECELERATE_TO_STOP
@@ -228,7 +246,7 @@ void motors_disable_z(void) {
  * 
  */
 void motors_start_z(void) {
-    stepper_z->moveByAcceleration(ACCELERATION_Z_HZ);
+    stepper_z->moveByAcceleration(stepper_z->getAcceleration());
 }
 
 /**
@@ -237,4 +255,13 @@ void motors_start_z(void) {
  */
 void motors_stop_z(void) {
     stepper_z->stopMove();
+}
+
+/**
+ * @brief Checks if Z motor is stopped
+ * 
+ * @return boolean - true if motor is stopped
+ */
+boolean is_motor_z_stopped() {
+    return !stepper_z->isMotorRunning();
 }

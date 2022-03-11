@@ -85,18 +85,21 @@ float motors_get_x();
 float motors_get_y();
 void motors_set_speed_x(float speed_mm_s);
 void motors_set_speed_y(float speed_mm_s);
+void motors_set_speed_z(uint32_t speed_hz);
 void motors_set_acceleration_x(float acceleration_mm_s);
 void motors_set_acceleration_y(float acceleration_mm_s);
+void motors_set_acceleration_z(int32_t acceleration_steps_s);
 void motors_move_to_position(float *x, float *y);
 void motors_enable(void);
 void motors_disable(void);
-boolean is_motors_decelerating_or_stopped();
+boolean is_motors_stopped();
 void motors_stop(void);
 void motors_abort_and_reset(void);
 void motors_enable_z(void);
 void motors_disable_z(void);
 void motors_start_z(void);
 void motors_stop_z(void);
+boolean is_motor_z_stopped();
 
 // Needle sensor
 void needle_sensor_setup(void);
