@@ -78,3 +78,11 @@ This is just a small part of what this project can do...
 ## How to build this
 
 Instruction in progress...
+
+- At the start, you need to assemble a frame along which the hoop can move freely along two axes (as in the photos). In my case, drawer sliders were used. They are not very accurate, but their rigidity is usually sufficient.
+- For movement, i used stepper motors with belts and racks. You need to move the hoop as quickly as possible, so it is recommended to use belts (used in 3d printers).
+- To assemble the frame, you can find some parts in the 3D folder.
+- Next, you need to assemble the electronics. I use 4 frame motor drivers (DRV8825 or A4988) and a DRV8825 driver at 40 volts to drive the sewing machine.
+- For control panel, you need to connect an I2C display 20x4, a rotary encoder and a slot for a SD card (electronics schematic under development).
+- For motors, set the current close to the maximum. (1.5-1.6A or 0.8V ref on driver for Nema17)
+- After flashing the microcontroller, use OpenEmroidery.py to convert the embroidery template to a .gcode file, save it to a memory card and load it from the menu.
