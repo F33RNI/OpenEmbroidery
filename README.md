@@ -64,7 +64,7 @@ G-Code files are read from the memory card. To control the entire system, one si
 <div style="width:100%;text-align:center;">
     <p align="center">
         <img src="./PHOTOS/pizza.jpg" width="auto" height="300">
-        <img src="./PHOTOS/biba.jpg" width="auto" height="300">
+        <img src="./PHOTOS/bee_and_glasses.jpg" width="auto" height="300">
     </p>
     <p align="center">
         <img src="./PHOTOS/sakura.jpg" width="auto" height="300">
