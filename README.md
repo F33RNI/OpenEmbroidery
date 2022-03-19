@@ -74,6 +74,8 @@ G-Code files are read from the memory card. To control the entire system, one si
 
 This is just a small part of what this project can do...
 
+.DST files can be found in `examples` folder
+
 ----------
 
 ## How to build this
