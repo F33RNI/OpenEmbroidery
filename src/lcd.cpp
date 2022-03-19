@@ -152,8 +152,11 @@ void lcd_print_file_name(void) {
 
     // Print file name
     lcd.setCursor(1, 0);
-    for (uint8_t i = 0; i < 19; i++)
+    for (uint8_t i = 0; i < 19; i++) {
+        if (sd_card_get_file_name()[i] < 20)
+            break;
         lcd.print(sd_card_get_file_name()[i]);
+    }
 }
 
 void lcd_print_pre_start(void) {
@@ -224,4 +227,18 @@ void lcd_print_pause(void) {
 
     lcd.setCursor(1, 3);
     lcd.print(F("Stop"));
+}
+
+void lcd_print_stop(void) {
+    lcd.clear();
+    lcd_print_file_name();
+
+    lcd.setCursor(1, 1);
+    lcd.print(F("- Are you sure? -"));
+
+    lcd.setCursor(1, 2);
+    lcd.print(F("Stop"));
+
+    lcd.setCursor(1, 3);
+    lcd.print(F("Back"));
 }

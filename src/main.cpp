@@ -88,24 +88,29 @@ void setup() {
 void loop() {
   switch (system_state)
   {
-  case 1:
+  case STATE_PRE_START:
     // Pre-start menu
     menu_pre_start();
     break;
 
-  case 2:
-  case 3:
+  case STATE_WORK:
+  case STATE_TENSION_SETUP:
     // Working
     gcode_cycle();
-    if (system_state == 3)
+    if (system_state == STATE_TENSION_SETUP)
       menu_tension();
     else
       menu_work();
     break;
 
-  case 4:
+  case STATE_PAUSE:
     // Pause
     menu_pause();
+    break;
+
+  case STATE_STOP_CONFIRMATION:
+    // Stop confirmation
+    menu_stop_confirmation();
     break;
   
   default:

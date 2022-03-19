@@ -148,9 +148,6 @@ void gcode_cycle(void) {
 
                 // Draw paused menu
                 menu_pause_file();
-
-                // Reset paused_code after pause
-                paused_code = 0;
                 break;
 
             case 3:
@@ -337,6 +334,9 @@ void gcode_pause(void) {
 void gcode_resume(void) {
     // Reset line condition
     next_line_condition = CONDITION_IMMEDIATELY;
+
+    // Reset paused_code
+    paused_code = 0;
 }
 
 void gcode_stop(void) {

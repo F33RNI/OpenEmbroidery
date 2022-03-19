@@ -27,8 +27,15 @@
 
 #define SOFTWARE_VERSION "1.0"
 
-// System status (0 - sd card menu, 1 - prerun menu, 2 - working, 3 - tension setup, 4 - pause menu)
+// System status
 extern volatile uint8_t system_state;
+
+#define STATE_SD_MENU 0
+#define STATE_PRE_START 1
+#define STATE_WORK 2
+#define STATE_TENSION_SETUP 3
+#define STATE_PAUSE 4
+#define STATE_STOP_CONFIRMATION 5
 
 // Debug serial
 #ifdef DEBUG
@@ -68,6 +75,7 @@ void lcd_print_work(void);
 void lcd_print_progress(void);
 void lcd_print_tension(void);
 void lcd_print_pause(void);
+void lcd_print_stop(void);
 
 // Menu
 void menu_sd_card_init(void);
@@ -76,6 +84,7 @@ void menu_pre_start(void);
 void menu_work(void);
 void menu_tension(void);
 void menu_pause(void);
+void menu_stop_confirmation(void);
 void menu_stop_file(void);
 void menu_pause_file(void);
 

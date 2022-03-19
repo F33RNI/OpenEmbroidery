@@ -103,7 +103,7 @@ void menu_sd_card(void) {
     // Button pressed (file selected)
     if (encoder_get_button_flag()) {
         // Change system state to pre-run menu
-        system_state = 1;
+        system_state = STATE_PRE_START;
 
         // Draw pre-start menu
         lcd_print_pre_start();
@@ -147,13 +147,13 @@ void menu_pre_start(void) {
             lcd_print_cursor(sub_menu_cursor);
 
             // Set system state to working
-            system_state = 2;
+            system_state = STATE_WORK;
         }
 
         // Go back
         else {
             // Return to main menu
-            system_state = 0;
+            system_state = STATE_SD_MENU;
             lcd_print_selector();
             lcd_print_cursor(selector_cursor);
         }
@@ -169,7 +169,7 @@ void menu_work(void) {
 
     // If value changed
     if (menu_encoder_counter_temp != menu_encoder_counter) {
-        // Cycle only between 2 values (start and back)
+        // Cycle only between 2 values (pause and change tension)
         if (menu_encoder_counter_temp > menu_encoder_counter)
             sub_menu_cursor = 3;
         else
@@ -191,7 +191,7 @@ void menu_work(void) {
         // Change tension
         else {
             // Change system_state to tension setup
-            system_state = 3;
+            system_state = STATE_TENSION_SETUP;
 
             // Clear left cursor
             lcd_print_cursor(5);
@@ -232,8 +232,8 @@ void menu_tension(void) {
 
     // Button pressed (return to normal printing)
     if (encoder_get_button_flag()) {
-        // Return to default printing menu
-        system_state = 2;
+        // Return to default work menu
+        system_state = STATE_WORK;
         lcd_print_cursor(sub_menu_cursor);
         lcd_print_bottom_right_cursor(false);
 
@@ -248,7 +248,7 @@ void menu_pause(void) {
 
     // If value changed
     if (menu_encoder_counter_temp != menu_encoder_counter) {
-        // Cycle only between 2 values (start and back)
+        // Cycle only between 2 values (resume and stop)
         if (menu_encoder_counter_temp > menu_encoder_counter)
             sub_menu_cursor = 3;
         else
@@ -271,15 +271,63 @@ void menu_pause(void) {
             lcd_print_cursor(sub_menu_cursor);
 
             // Set system state to working
-            system_state = 2;
+            system_state = STATE_WORK;
 
             // Resume work
             gcode_resume();
         }
 
         // Stop
+        else {
+            // Draw stop menu
+            lcd_print_stop();
+            sub_menu_cursor = 3;
+            lcd_print_cursor(sub_menu_cursor);
+
+            // Set system state to stop confirmation
+            system_state = STATE_STOP_CONFIRMATION;
+        }
+
+        // Clear button flag
+        encoder_clear_button_flag();
+    }
+}
+
+void menu_stop_confirmation(void) {
+    // Get current encoder state
+    menu_encoder_counter_temp = encoder_get_counter();
+
+    // If value changed
+    if (menu_encoder_counter_temp != menu_encoder_counter) {
+        // Cycle only between 2 values (stop and back)
+        if (menu_encoder_counter_temp > menu_encoder_counter)
+            sub_menu_cursor = 3;
         else
+            sub_menu_cursor = 2;
+
+        // Mark selected option with cursor
+        lcd_print_cursor(sub_menu_cursor);
+
+        // Store for next cycle
+        menu_encoder_counter = menu_encoder_counter_temp;
+    }
+
+    // Button pressed
+    if (encoder_get_button_flag()) {
+        // Stop
+        if (sub_menu_cursor == 2)
             menu_stop_file();
+
+        // Back
+        else {
+            // Print pause menu
+            sub_menu_cursor = 2;
+            lcd_print_pause();
+            lcd_print_cursor(sub_menu_cursor);
+            
+            // Change system_state to pause
+            system_state = STATE_PAUSE;
+        }
 
         // Clear button flag
         encoder_clear_button_flag();
@@ -294,14 +342,14 @@ void menu_stop_file(void) {
     gcode_clear();
 
     // Return to main menu
-    system_state = 0;
+    system_state = STATE_SD_MENU;
     lcd_print_selector();
     lcd_print_cursor(selector_cursor);
 }
 
 void menu_pause_file(void) {
     // Change system_state to pause
-    system_state = 4;
+    system_state = STATE_PAUSE;
 
     // Pause current work
     gcode_pause();

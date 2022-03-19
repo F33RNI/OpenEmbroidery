@@ -263,5 +263,5 @@ void motors_stop_z(void) {
  * @return boolean - true if motor is stopped
  */
 boolean is_motor_z_stopped() {
-    return !stepper_z->isMotorRunning();
+    return !stepper_z->isRunning();
 }
